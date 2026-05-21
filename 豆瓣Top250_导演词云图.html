@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>豆瓣 Top 250 · 导演词云图</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      background: #f6f6f6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 60px;
+      color: #111;
+    }
+
+    /* ======= Header ======= */
+    .header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #007722;
+    }
+    .header p {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #666;
+      letter-spacing: 1px;
+    }
+
+    /* ======= 主容器 ======= */
+    .cloud-container {
+      width: 100%;
+      max-width: 1000px;
+    }
+
+    /* ======= 第1名：超大居中卡片 ======= */
+    .rank1-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .rank1-card {
+      position: relative;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 20px;
+      padding: 28px 48px;
+      text-align: center;
+      cursor: default;
+      transition: transform 0.25s, box-shadow 0.25s;
+      overflow: hidden;
+      min-width: 320px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .rank1-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,119,34,0.15);
+    }
+    .rank1-medal { font-size: 28px; line-height: 1; margin-bottom: 8px; }
+    .rank1-name {
+      font-size: clamp(24px, 4vw, 40px);
+      font-weight: 900;
+      color: #007722;
+      letter-spacing: 1px;
+      line-height: 1.3;
+    }
+    .rank1-sub {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #999;
+      letter-spacing: 1px;
+    }
+    .rank1-count {
+      display: inline-block;
+      margin-top: 10px;
+      color: #007722;
+      font-size: 32px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .rank1-count-unit {
+      font-size: 14px;
+      color: #666;
+      margin-left: 4px;
+    }
+
+    /* ======= 第2-3名：两列并排 ======= */
+    .rank23-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .rank23-card {
+      position: relative;
+      border-radius: 16px;
+      padding: 20px 24px;
+      text-align: center;
+      cursor: default;
+      transition: transform 0.22s, box-shadow 0.22s;
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .rank23-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,119,34,0.12);
+    }
+    .rank23-medal { font-size: 20px; margin-bottom: 6px; }
+    .rank23-name {
+      font-size: clamp(14px, 2.2vw, 24px);
+      font-weight: 800;
+      line-height: 1.4;
+      letter-spacing: 0.5px;
+      color: #007722;
+    }
+    .rank23-count {
+      font-size: 26px;
+      font-weight: 900;
+      margin-top: 8px;
+      color: #007722;
+    }
+    .rank23-count-unit { font-size: 12px; color: #999; margin-left: 3px; }
+
+    /* ======= 第4名：单独一行（介于大小之间）======= */
+    .rank4-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .rank4-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 14px;
+      padding: 16px 40px;
+      text-align: center;
+      cursor: default;
+      transition: transform 0.22s, box-shadow 0.22s;
+      min-width: 280px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .rank4-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0,119,34,0.12);
+    }
+    .rank4-name {
+      font-size: clamp(16px, 2.8vw, 28px);
+      font-weight: 800;
+      color: #007722;
+      letter-spacing: 0.5px;
+    }
+    .rank4-meta {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #999;
+    }
+    .rank4-meta strong { color: #007722; font-size: 20px; }
+
+    /* ======= 第5-10名：3列网格（第5-7 / 第8-10）======= */
+    .rank5to10-wrap {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .rank23-wrap { grid-template-columns: 1fr; }
+      .rank5to10-wrap { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .rankN-card {
+      border-radius: 12px;
+      padding: 14px 16px;
+      text-align: center;
+      cursor: default;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+    .rankN-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,119,34,0.1); }
+
+    .rankN-no {
+      font-size: 11px;
+      font-weight: 600;
+      color: #999;
+      letter-spacing: 1px;
+    }
+    .rankN-name {
+      font-size: clamp(12px, 1.6vw, 17px);
+      font-weight: 700;
+      line-height: 1.4;
+      letter-spacing: 0.3px;
+      color: #007722;
+    }
+    .rankN-bar-wrap {
+      width: 80%;
+      height: 3px;
+      background: #eef7f2;
+      border-radius: 2px;
+      margin-top: 2px;
+    }
+    .rankN-bar {
+      height: 3px;
+      border-radius: 2px;
+    }
+    .rankN-count {
+      font-size: 18px;
+      font-weight: 800;
+      color: #007722;
+    }
+
+    /* ======= 底部排行榜 ======= */
+    .ranking {
+      margin-top: 36px;
+      width: 100%;
+      max-width: 1000px;
+    }
+    .ranking h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #111;
+      margin-bottom: 14px;
+      border-left: 4px solid #007722;
+      padding-left: 12px;
+    }
+    .rank-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    .rank-item {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    }
+    .rank-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,119,34,0.1); }
+    .rank-no {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px;
+      flex-shrink: 0;
+    }
+    .rank-no.gold   { background: #007722; color:#fff; }
+    .rank-no.silver { background: #eef7f2; color:#007722; border: 1px solid #007722; }
+    .rank-no.bronze { background: #f6f6f6; color:#007722; border: 1px solid #999; }
+    .rank-no.other  { background: #f6f6f6; color:#666; }
+    .rank-info { flex: 1; min-width: 0; }
+    .rank-name { font-size: 12px; font-weight: 600; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-bar-wrap { margin-top: 4px; background: #eef7f2; border-radius: 3px; height: 4px; }
+    .rank-bar { height: 4px; border-radius: 3px; background: #007722; }
+    .rank-count { font-size: 18px; font-weight: 700; color: #007722; flex-shrink: 0; }
+
+    /* ====== 洞察文本框 ====== */
+    .insight-box {
+      max-width:900px; margin:36px auto 0;
+      background: #fff;
+      border:1px solid #e0e0e0;
+      border-radius:16px; padding:20px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .insight-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .insight-title { font-size:13px; font-weight:700; letter-spacing:1px; color:#007722; display:flex; align-items:center; gap:8px; }
+    .insight-saved { font-size:11px; color:#999; transition:opacity .4s; }
+    .insight-textarea {
+      width:100%; min-height:110px;
+      background:#f6f6f6; border:1px solid #e0e0e0;
+      border-radius:10px; padding:12px 14px;
+      color:#111; font-size:13px;
+      font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+      line-height:1.8; resize:vertical; outline:none;
+      transition:border-color .2s,background .2s; box-sizing:border-box;
+    }
+    .insight-textarea::placeholder { color:#999; }
+    .insight-textarea:focus { border-color:#007722; background:#fff; }
+    .insight-footer-row { display:flex; justify-content:flex-end; margin-top:10px; gap:8px; }
+    .insight-btn { padding:6px 16px; border:none; border-radius:8px; font-size:12px; cursor:pointer; transition:opacity .2s,transform .2s; }
+    .insight-btn:hover { opacity:.85; transform:translateY(-1px); }
+    .insight-btn-save { background:#007722; color:#fff; font-weight:700; }
+    .insight-btn-clear { background:#f6f6f6; border:1px solid #e0e0e0; color:#666; }
+
+    .footer {
+      margin-top: 36px;
+      font-size: 12px;
+      color: #999;
+      letter-spacing: 1px;
+    }
+
+    /* ======= 入场动画 ======= */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .rank1-card  { animation: fadeUp 0.5s ease both; animation-delay: 0.05s; }
+    .rank23-card { animation: fadeUp 0.5s ease both; }
+    .rank23-card.r2 { animation-delay: 0.12s; }
+    .rank23-card.r3 { animation-delay: 0.18s; }
+    .rank4-card  { animation: fadeUp 0.5s ease both; animation-delay: 0.24s; }
+    .rankN-card  { animation: fadeUp 0.5s ease both; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>豆瓣 Top 250 · 导演执导影片</h1>
+  <p>字体大小 · 颜色深浅 均代表执导影片数量 &nbsp;|&nbsp; 仅展示 Top 10 导演</p>
+</div>
+
+<div class="cloud-container" id="cloudContainer">
+  <!-- 由 JS 动态渲染 -->
+</div>
+
+<div class="ranking">
+  <h2>🏆 执导影片数量 Top 10</h2>
+  <div class="rank-list" id="rankList"></div>
+</div>
+
+<div class="insight-box">
+  <div class="insight-header">
+    <div class="insight-title">★ Insight · 你的洞察与观点</div>
+    <span class="insight-saved" id="insightSaved"></span>
+  </div>
+  <textarea class="insight-textarea" id="insightText"
+    placeholder="在这里记录你的分析洞察，例如：&#10;· 哪位导演的影响力最大？风格有何特点？&#10;· 东西方导演的上榜比例体现了什么？&#10;· 多产导演与豆瓣用户口味之间有何关联？"></textarea>
+  <div class="insight-footer-row">
+    <button class="insight-btn insight-btn-clear" onclick="insightClear('director')">清空</button>
+    <button class="insight-btn insight-btn-save" onclick="insightSave('director')">💾 保存</button>
+  </div>
+</div>
+
+<div class="footer">CC - AI 助理 &nbsp;|&nbsp; 数据来源：豆瓣电影 Top 250</div>
+
+<script>
+(function(){
+  const KEY = 'insight_director';
+  const ta = document.getElementById('insightText');
+  const saved = localStorage.getItem(KEY);
+  if(saved) ta.value = saved;
+  ta.addEventListener('input', function(){ localStorage.setItem(KEY, ta.value); });
+})();
+function insightSave(k){
+  const ta = document.getElementById('insightText');
+  localStorage.setItem('insight_'+k, ta.value);
+  const el = document.getElementById('insightSaved');
+  el.textContent = '✓ 已保存 ' + new Date().toLocaleTimeString();
+  setTimeout(()=>{ el.textContent=''; }, 3000);
+}
+function insightClear(k){
+  if(!confirm('确定清空洞察内容吗？')) return;
+  document.getElementById('insightText').value = '';
+  localStorage.removeItem('insight_'+k);
+}
+</script>
+
+<!-- Tooltip -->
+<div id="tooltip" style="
+  position:fixed; background:rgba(255,255,255,0.98);
+  border:1px solid #e0e0e0; border-radius:10px;
+  padding:10px 16px; font-size:13px; color:#111;
+  pointer-events:none; opacity:0; transition:opacity 0.15s;
+  z-index:999; max-width:260px; line-height:1.8;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+" id="tooltip"></div>
+
+<script>
+// 默认 Top10 数据
+let rawData = [
+  { name:"宫崎骏",      nameEn:"Hayao Miyazaki",      value:8 },
+  { name:"史蒂文·斯皮尔伯格", nameEn:"Steven Spielberg",    value:6 },
+  { name:"克里斯托弗·诺兰",  nameEn:"Christopher Nolan",   value:6 },
+  { name:"李安",        nameEn:"Ang Lee",              value:5 },
+  { name:"王家卫",      nameEn:"Kar Wai Wong",         value:4 },
+  { name:"大卫·芬奇",   nameEn:"David Fincher",        value:4 },
+  { name:"是枝裕和",    nameEn:"Hirokazu Koreeda",     value:4 },
+  { name:"今敏",        nameEn:"Satoshi Kon",          value:4 },
+  { name:"彼特·道格特", nameEn:"Pete Docter",          value:4 },
+  { name:"刘镇伟",      nameEn:"Jeffrey Lau",          value:3 }
+];
+
+// ===== localStorage 数据读取已禁用，使用硬编码原始数据 =====
+// 如需恢复数据上传功能，请取消下面代码块的注释
+/*
+(function() {
+  try {
+    const saved = localStorage.getItem('douban_top250_data');
+    if(!saved) return;
+    const all = JSON.parse(saved);
+    if(!Array.isArray(all) || all.length === 0) return;
+    const map = {};
+    all.forEach(d => {
+      const name = (d.director||'').trim();
+      if(name) map[name] = (map[name]||0) + 1;
+    });
+    const sorted = Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    rawData = sorted.map(([name, value]) => ({ name, nameEn: '', value }));
+  } catch(e) { console.warn('读取localStorage失败', e); }
+})();
+*/
+
+// 每位导演专属配色 [文字色, 边框色透明度基准, 背景渐变]
+const STYLES = [
+  { color:'#007722', bg:'#fff',  border:'#e0e0e0',  bar:'#007722' },
+  { color:'#007722', bg:'#fff', border:'#e0e0e0', bar:'#007722' },
+  { color:'#007722', bg:'#fff', border:'#e0e0e0', bar:'#007722' },
+  { color:'#007722', bg:'#fff',  border:'#e0e0e0',  bar:'#007722' },
+  { color:'#007722', bg:'#fff', border:'#e0e0e0', bar:'#007722' },
+  { color:'#007722', bg:'#fff', border:'#e0e0e0', bar:'#007722' },
+  { color:'#007722', bg:'#fff', border:'#e0e0e0', bar:'#007722' },
+  { color:'#007722', bg:'#fff', border:'#e0e0e0', bar:'#007722' },
+  { color:'#007722', bg:'#fff', border:'#e0e0e0', bar:'#007722' },
+  { color:'#007722', bg:'#fff', border:'#e0e0e0', bar:'#007722' },
+];
+
+const sorted  = [...rawData].sort((a, b) => b.value - a.value);
+const maxVal  = sorted[0].value;
+const tip     = document.getElementById('tooltip');
+const container = document.getElementById('cloudContainer');
+
+function showTip(e, item, rank) {
+  const medals = ['🥇','🥈','🥉'];
+  const medal  = rank < 3 ? medals[rank] : `第 ${rank+1} 名`;
+  tip.innerHTML = `
+    <div style="font-weight:700;font-size:15px;color:#007722;margin-bottom:2px">${medal} ${item.name}</div>
+    <div style="font-size:12px;color:#666">${item.nameEn}</div>
+    <div style="margin-top:4px;color:#111">执导豆瓣Top250影片：<strong style="color:#007722">${item.value}</strong> 部</div>`;
+  tip.style.opacity = '1';
+}
+function moveTip(e) {
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top  = (e.clientY - 10) + 'px';
+}
+function hideTip() { tip.style.opacity = '0'; }
+
+function bindTip(el, item, rank) {
+  el.addEventListener('mouseenter', e => showTip(e, item, rank));
+  el.addEventListener('mousemove',  moveTip);
+  el.addEventListener('mouseleave', hideTip);
+}
+
+// ===== 渲染第1名 =====
+const d0 = sorted[0];
+const s0 = STYLES[0];
+const r1 = document.createElement('div');
+r1.className = 'rank1-wrap';
+r1.innerHTML = `
+  <div class="rank1-card">
+    <div class="rank1-medal">🥇</div>
+    <div class="rank1-name">${d0.name}</div>
+    <div class="rank1-sub">${d0.nameEn} &nbsp;·&nbsp; 执导影片最多</div>
+    <div style="margin-top:12px">
+      <span class="rank1-count">${d0.value}</span>
+      <span class="rank1-count-unit">部</span>
+    </div>
+  </div>`;
+bindTip(r1.querySelector('.rank1-card'), d0, 0);
+container.appendChild(r1);
+
+// ===== 渲染第2-3名 =====
+const r23 = document.createElement('div');
+r23.className = 'rank23-wrap';
+[1, 2].forEach(i => {
+  const d = sorted[i];
+  const s = STYLES[i];
+  const cls = i === 1 ? 'r2' : 'r3';
+  const medal = i === 1 ? '🥈' : '🥉';
+  const card = document.createElement('div');
+  card.className = `rank23-card ${cls}`;
+  card.style.animationDelay = (i === 1 ? '0.12' : '0.18') + 's';
+  card.innerHTML = `
+    <div class="rank23-medal">${medal}</div>
+    <div class="rank23-name">${d.name}</div>
+    <div style="font-size:11px;color:#999;margin-top:2px">${d.nameEn}</div>
+    <div style="margin-top:8px">
+      <span class="rank23-count">${d.value}</span>
+      <span class="rank23-count-unit">部</span>
+    </div>`;
+  bindTip(card, d, i);
+  r23.appendChild(card);
+});
+container.appendChild(r23);
+
+// ===== 渲染第4名 =====
+const d3 = sorted[3];
+const r4 = document.createElement('div');
+r4.className = 'rank4-wrap';
+r4.innerHTML = `
+  <div class="rank4-card">
+    <div style="font-size:11px;color:#999;margin-bottom:4px;letter-spacing:1px">第 4 名</div>
+    <div class="rank4-name">${d3.name}</div>
+    <div style="font-size:11px;color:#999;margin-top:2px">${d3.nameEn}</div>
+    <div class="rank4-meta">执导 <strong>${d3.value}</strong> 部</div>
+  </div>`;
+bindTip(r4.querySelector('.rank4-card'), d3, 3);
+container.appendChild(r4);
+
+// ===== 渲染第5-10名 =====
+const r5to10 = document.createElement('div');
+r5to10.className = 'rank5to10-wrap';
+sorted.slice(4).forEach((d, idx) => {
+  const rank = idx + 4;
+  const s    = STYLES[rank];
+  const barW = Math.round((d.value / maxVal) * 100);
+  const delay = (0.3 + idx * 0.06).toFixed(2);
+  const card = document.createElement('div');
+  card.className = 'rankN-card';
+  card.style.cssText = `animation-delay:${delay}s`;
+  card.innerHTML = `
+    <div class="rankN-no">第 ${rank+1} 名</div>
+    <div class="rankN-name">${d.name}</div>
+    <div style="font-size:10px;color:#999">${d.nameEn}</div>
+    <div class="rankN-bar-wrap"><div class="rankN-bar" style="width:${barW}%;background:${s.bar}"></div></div>
+    <div class="rankN-count">${d.value} <span style="font-size:11px;font-weight:400;color:#999">部</span></div>`;
+  bindTip(card, d, rank);
+  r5to10.appendChild(card);
+});
+container.appendChild(r5to10);
+
+// ===== 底部排行榜 =====
+const rankList = document.getElementById('rankList');
+sorted.forEach((item, i) => {
+  const s   = STYLES[i];
+  const cls = i===0 ? 'gold' : i===1 ? 'silver' : i===2 ? 'bronze' : 'other';
+  const pct = Math.round((item.value / maxVal) * 100);
+  const el  = document.createElement('div');
+  el.className = 'rank-item';
+  el.innerHTML = `
+    <div class="rank-no ${cls}">${i+1}</div>
+    <div class="rank-info">
+      <div class="rank-name" title="${item.name} ${item.nameEn}">${item.name}</div>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%;background:${s.bar}"></div></div>
+    </div>
+    <div class="rank-count">${item.value}</div>`;
+  rankList.appendChild(el);
+});
+</script>
+</body>
+</html>

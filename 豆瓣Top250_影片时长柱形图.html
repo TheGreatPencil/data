@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>豆瓣 Top 250 · 影片时长分布柱形图</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      background: #f6f6f6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 24px 56px;
+      color: #111;
+    }
+
+    /* ---- Header ---- */
+    .header { text-align: center; margin-bottom: 36px; }
+    .header h1 {
+      font-size: 26px; font-weight: 700; letter-spacing: 2px;
+      color: #007722;
+    }
+    .header p { margin-top: 8px; font-size: 13px; color: #666; letter-spacing: 1px; }
+
+    /* ---- 统计卡片 ---- */
+    .stat-cards {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      justify-content: center; margin-bottom: 32px;
+    }
+    .stat-card {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 14px; padding: 14px 22px;
+      text-align: center; min-width: 110px;
+      transition: transform .2s, box-shadow .2s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .stat-card .s-val { font-size: 24px; font-weight: 700; color: #007722; }
+    .stat-card .s-lbl { font-size: 11px; color: #999; margin-top: 2px; letter-spacing: .5px; }
+
+    /* ---- 图表区域 ---- */
+    .chart-wrap {
+      width: 100%; max-width: 960px;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 20px; padding: 32px 32px 20px;
+      position: relative;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .chart-title {
+      font-size: 14px; color: #666;
+      margin-bottom: 24px; text-align: center; letter-spacing: 1px;
+    }
+
+    /* ---- 柱形图主体 ---- */
+    .bar-chart {
+      display: flex; align-items: flex-end; justify-content: space-around;
+      gap: 10px; height: clamp(200px, 32vw, 380px); position: relative;
+    }
+
+    /* 网格线 */
+    .grid-lines {
+      position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+      pointer-events: none;
+    }
+    .grid-line {
+      position: absolute; left: 0; right: 0;
+      border-top: 1px dashed #e0e0e0;
+    }
+    .grid-label {
+      position: absolute; left: -34px; transform: translateY(-50%);
+      font-size: 11px; color: #999;
+    }
+
+    /* 柱子列 */
+    .bar-col {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-end;
+      gap: 0; position: relative; z-index: 1;
+      cursor: pointer;
+    }
+    .bar-count {
+      font-size: 13px; font-weight: 700; margin-bottom: 6px;
+      opacity: 0; transform: translateY(6px);
+      transition: opacity .3s, transform .3s;
+      color: #007722; flex-shrink: 0;
+    }
+    .bar-col:hover .bar-count { opacity: 1; transform: translateY(0); }
+
+    .bar-body {
+      width: 100%; border-radius: 8px 8px 0 0;
+      position: relative; overflow: hidden;
+      transition: filter .2s, transform .2s, height 0.7s cubic-bezier(.23,1,.32,1);
+      transform-origin: bottom center;
+      flex-shrink: 0;
+    }
+    .bar-col:hover .bar-body {
+      filter: brightness(1.25);
+      transform: scaleY(1.025);
+    }
+    .bar-shine {
+      position: absolute; top: 0; left: 0; right: 0; height: 40%;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.3), transparent);
+      border-radius: 8px 8px 0 0;
+    }
+    .bar-pct {
+      position: absolute; bottom: 6px; left: 0; right: 0;
+      text-align: center; font-size: 11px;
+      color: rgba(255,255,255,0.9); font-weight: 600;
+    }
+
+    /* X 轴 */
+    .x-axis {
+      display: flex; justify-content: space-around; gap: 10px;
+      margin-top: 0; border-top: 1px solid #e0e0e0;
+    }
+    .x-label {
+      flex: 1; text-align: center; padding-top: 10px;
+      font-size: 12px; color: #666; letter-spacing: .5px;
+    }
+    .x-unit {
+      text-align: center; margin-top: 8px;
+      font-size: 12px; color: #999; letter-spacing: 1px;
+    }
+
+    /* ---- Tooltip ---- */
+    .tooltip {
+      position: fixed; background: #fff;
+      border: 1px solid #e0e0e0; border-radius: 12px;
+      padding: 12px 18px; font-size: 13px; color: #111;
+      pointer-events: none; opacity: 0; transition: opacity .15s;
+      z-index: 999; line-height: 2; min-width: 180px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    }
+    .tooltip.show { opacity: 1; }
+    .tooltip .t-range { font-size: 15px; font-weight: 700; color: #007722; }
+    .tooltip .t-val   { color: #111; }
+    .tooltip .t-pct   { color: #999; font-size: 11px; }
+    .tooltip .t-avg   { color: #007722; }
+
+    /* ---- 影片明细 ---- */
+    .detail-wrap {
+      width: 100%; max-width: 960px; margin-top: 28px;
+    }
+    .detail-wrap h2 {
+      font-size: 15px; font-weight: 600;
+      color: #111; margin-bottom: 14px;
+      border-left: 4px solid #007722; padding-left: 12px;
+    }
+    .detail-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;
+    }
+    .detail-card {
+      background: #fff; border: 1px solid #e0e0e0;
+      border-radius: 12px; padding: 12px 16px;
+      display: flex; align-items: center; gap: 12px;
+      transition: transform .18s, box-shadow .18s; cursor: default;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .detail-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .detail-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .detail-info { flex: 1; min-width: 0; }
+    .detail-range { font-size: 12px; color: #999; }
+    .detail-count-wrap { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+    .detail-count { font-size: 20px; font-weight: 700; line-height: 1; }
+    .detail-unit  { font-size: 12px; color: #999; }
+    .detail-bar-bg { margin-top: 5px; background: #f0f0f0; border-radius: 4px; height: 4px; }
+    .detail-bar    { height: 4px; border-radius: 4px; }
+
+    /* ====== 洞察文本框 ====== */
+    .insight-box {
+      max-width:900px; margin:36px auto 0;
+      background:#fff;
+      border:1px solid #e0e0e0;
+      border-radius:16px; padding:20px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .insight-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .insight-title { font-size:13px; font-weight:700; letter-spacing:1px; color:#007722; display:flex; align-items:center; gap:8px; }
+    .insight-saved { font-size:11px; color:#999; transition:opacity .4s; }
+    .insight-textarea {
+      width:100%; min-height:110px;
+      background:#f9f9f9; border:1px solid #e0e0e0;
+      border-radius:10px; padding:12px 14px;
+      color:#111; font-size:13px;
+      font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+      line-height:1.8; resize:vertical; outline:none;
+      transition:border-color .2s,background .2s; box-sizing:border-box;
+    }
+    .insight-textarea::placeholder { color:#999; }
+    .insight-textarea:focus { border-color:#007722; background:#fff; }
+    .insight-footer-row { display:flex; justify-content:flex-end; margin-top:10px; gap:8px; }
+    .insight-btn { padding:6px 16px; border:none; border-radius:8px; font-size:12px; cursor:pointer; transition:opacity .2s,transform .2s; }
+    .insight-btn:hover { opacity:.85; transform:translateY(-1px); }
+    .insight-btn-save { background:#007722; color:#fff; font-weight:700; }
+    .insight-btn-clear { background:#f6f6f6; border:1px solid #e0e0e0; color:#666; }
+
+    .footer {
+      margin-top: 32px; font-size: 12px;
+      color: #999; letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>豆瓣 Top 250 · 影片时长分布柱形图</h1>
+  <p>按片长（分钟）分组 · 对片名去重计数 · 共 250 部影片</p>
+</div>
+
+<!-- 统计卡片 -->
+<div class="stat-cards">
+  <div class="stat-card">
+    <div class="s-val" style="color:#007722">250</div>
+    <div class="s-lbl">影片总数</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-val" style="color:#1a8f3f">123</div>
+    <div class="s-lbl">平均时长（分钟）</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-val" style="color:#2ba84a">45</div>
+    <div class="s-lbl">最短时长（分钟）</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-val" style="color:#e74c3c">233</div>
+    <div class="s-lbl">最长时长（分钟）</div>
+  </div>
+  <div class="stat-card">
+    <div class="s-val" style="color:#007722">90~119</div>
+    <div class="s-lbl">最多影片分组</div>
+  </div>
+</div>
+
+<!-- 柱形图 -->
+<div class="chart-wrap">
+  <div class="chart-title">各时长区间影片数量（部）</div>
+  <div style="position:relative; padding-left: 38px;">
+    <div class="grid-lines" id="gridLines"></div>
+    <div class="bar-chart" id="barChart"></div>
+  </div>
+  <div style="padding-left:38px">
+    <div class="x-axis" id="xAxis"></div>
+    <div class="x-unit">时长区间（分钟）</div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<!-- 明细卡片 -->
+<div class="detail-wrap">
+  <h2>📋 各分组明细</h2>
+  <div class="detail-grid" id="detailGrid"></div>
+</div>
+
+<div class="insight-box">
+  <div class="insight-header">
+    <div class="insight-title">★ Insight · 你的洞察与观点</div>
+    <span class="insight-saved" id="insightSaved"></span>
+  </div>
+  <textarea class="insight-textarea" id="insightText"
+    placeholder="在这里记录你的分析洞察，例如：&#10;· 观众最能接受的影片时长区间是哪个？&#10;· 时长与评分之间是否存在某种关联？&#10;· 超长影片（180分钟以上）为何仍能获得高分？"></textarea>
+  <div class="insight-footer-row">
+    <button class="insight-btn insight-btn-clear" onclick="insightClear('duration')">清空</button>
+    <button class="insight-btn insight-btn-save" onclick="insightSave('duration')">💾 保存</button>
+  </div>
+</div>
+
+<div class="footer">CC - AI 助理 &nbsp;|&nbsp; 数据来源：豆瓣电影 Top 250</div>
+
+<script>
+(function(){
+  const KEY = 'insight_duration';
+  const ta = document.getElementById('insightText');
+  const saved = localStorage.getItem(KEY);
+  if(saved) ta.value = saved;
+  ta.addEventListener('input', function(){ localStorage.setItem(KEY, ta.value); });
+})();
+function insightSave(k){
+  const ta = document.getElementById('insightText');
+  localStorage.setItem('insight_'+k, ta.value);
+  const el = document.getElementById('insightSaved');
+  el.textContent = '✓ 已保存 ' + new Date().toLocaleTimeString();
+  setTimeout(()=>{ el.textContent=''; }, 3000);
+}
+function insightClear(k){
+  if(!confirm('确定清空洞察内容吗？')) return;
+  document.getElementById('insightText').value = '';
+  localStorage.removeItem('insight_'+k);
+}
+</script>
+
+<script>
+let data = [
+  { range: '0~29',    value: 0  },
+  { range: '30~59',   value: 1  },
+  { range: '60~89',   value: 17 },
+  { range: '90~119',  value: 108},
+  { range: '120~149', value: 89 },
+  { range: '150~179', value: 26 },
+  { range: '180~209', value: 7  },
+  { range: '210~239', value: 2  }
+];
+
+// ===== localStorage 数据读取已禁用，使用硬编码原始数据 =====
+// 如需恢复数据上传功能，请取消下面代码块的注释
+/*
+(function () {
+  try {
+    const saved = localStorage.getItem('douban_top250_data');
+    if (!saved) return;
+    const all = JSON.parse(saved);
+    if (!Array.isArray(all) || all.length === 0) return;
+    const BUCKETS = [
+      { range:'0~29',    min:0,   max:29,  value:0 },
+      { range:'30~59',   min:30,  max:59,  value:0 },
+      { range:'60~89',   min:60,  max:89,  value:0 },
+      { range:'90~119',  min:90,  max:119, value:0 },
+      { range:'120~149', min:120, max:149, value:0 },
+      { range:'150~179', min:150, max:179, value:0 },
+      { range:'180~209', min:180, max:209, value:0 },
+      { range:'210~239', min:210, max:239, value:0 }
+    ];
+    const seen = new Set();
+    all.forEach(d => {
+      const title = (d.title || '').trim();
+      if (!title || seen.has(title)) return;
+      seen.add(title);
+      const dur = parseInt(d.duration);
+      if (isNaN(dur)) return;
+      const bucket = BUCKETS.find(b => dur >= b.min && dur <= b.max);
+      if (bucket) bucket.value++;
+    });
+    data = BUCKETS.map(b => ({ range: b.range, value: b.value }));
+  } catch (e) { console.warn('读取localStorage失败', e); }
+})();
+*/
+
+const COLORS = [
+  { bar: 'linear-gradient(180deg,#007722,#1a8f3f)', icon: '#007722' },
+  { bar: 'linear-gradient(180deg,#1a8f3f,#2ba84a)', icon: '#1a8f3f' },
+  { bar: 'linear-gradient(180deg,#2ba84a,#3cb85b)', icon: '#2ba84a' },
+  { bar: 'linear-gradient(180deg,#007722,#1a8f3f)', icon: '#007722' },
+  { bar: 'linear-gradient(180deg,#1a8f3f,#2ba84a)', icon: '#1a8f3f' },
+  { bar: 'linear-gradient(180deg,#2ba84a,#3cb85b)', icon: '#2ba84a' },
+  { bar: 'linear-gradient(180deg,#007722,#1a8f3f)', icon: '#007722' },
+  { bar: 'linear-gradient(180deg,#1a8f3f,#2ba84a)', icon: '#1a8f3f' }
+];
+
+const total   = data.reduce((s, d) => s + d.value, 0);
+const maxVal  = Math.max(...data.map(d => d.value));
+const gridMax = Math.ceil(maxVal / 20) * 20;
+
+const tooltip  = document.getElementById('tooltip');
+const barChart = document.getElementById('barChart');
+const xAxis    = document.getElementById('xAxis');
+const gridLines = document.getElementById('gridLines');
+
+// ---- 先渲染柱子骨架 + X 轴 ----
+const colEls = [];
+data.forEach((item, i) => {
+  const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0.0';
+  const col = COLORS[i];
+
+  const col_el = document.createElement('div');
+  col_el.className = 'bar-col';
+  col_el.innerHTML = `
+    <div class="bar-count">${item.value}</div>
+    <div class="bar-body" style="height:0;background:${col.bar}">
+      <div class="bar-shine"></div>
+      ${item.value > 0 ? `<div class="bar-pct">${pct}%</div>` : ''}
+    </div>`;
+  barChart.appendChild(col_el);
+  colEls.push({ col_el, item, pct, col });
+
+  xAxis.innerHTML += `<div class="x-label">${item.range}</div>`;
+
+  col_el.addEventListener('mouseenter', () => {
+    tooltip.innerHTML = `
+      <div class="t-range" style="color:${col.icon}">${item.range} 分钟</div>
+      <div class="t-val">影片数量：<strong>${item.value}</strong> 部</div>
+      <div class="t-pct">占所有影片：${pct}%</div>`;
+    tooltip.classList.add('show');
+  });
+  col_el.addEventListener('mousemove', (e) => {
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+  });
+  col_el.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+});
+
+// ---- 等 DOM 渲染完成，读取真实像素高度再计算 ----
+requestAnimationFrame(() => {
+  const chartH = barChart.clientHeight;
+  const steps  = 5;
+
+  // 网格线（px 定位）
+  for (let i = 0; i <= steps; i++) {
+    const v  = Math.round((gridMax / steps) * i);
+    const px = Math.round((gridMax - v) / gridMax * chartH);
+    gridLines.innerHTML += `
+      <div class="grid-line" style="top:${px}px">
+        <span class="grid-label">${v}</span>
+      </div>`;
+  }
+
+  // 柱子动画（px 高度）
+  colEls.forEach(({ col_el, item }, i) => {
+    const body    = col_el.querySelector('.bar-body');
+    const targetH = Math.round(item.value / gridMax * chartH);
+    setTimeout(() => {
+      body.style.height = (item.value > 0 ? Math.max(targetH, 4) : 0) + 'px';
+    }, i * 80);
+  });
+});
+
+// ---- 明细卡片 ----
+const detailGrid = document.getElementById('detailGrid');
+data.forEach((item, i) => {
+  const col  = COLORS[i];
+  const pct  = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0.0';
+  const barW = maxVal > 0 ? Math.round((item.value / maxVal) * 100) : 0;
+  detailGrid.innerHTML += `
+    <div class="detail-card">
+      <div class="detail-icon" style="background:${col.icon}22;color:${col.icon}">
+        ${item.range}
+      </div>
+      <div class="detail-info">
+        <div class="detail-range">片长区间（分钟）</div>
+        <div class="detail-count-wrap">
+          <div class="detail-count" style="color:${col.icon}">${item.value}</div>
+          <div class="detail-unit">部 &nbsp;·&nbsp; ${pct}%</div>
+        </div>
+        <div class="detail-bar-bg">
+          <div class="detail-bar" style="width:${barW}%;background:${col.bar}"></div>
+        </div>
+      </div>
+    </div>`;
+});
+</script>
+</body>
+</html>

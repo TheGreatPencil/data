@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>豆瓣 Top 250 · 制片国家/地区世界地图</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: "Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif;
+      background: #f6f6f6;
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 36px 20px 48px;
+      color: #111;
+    }
+
+    /* Header */
+    .header { text-align:center; margin-bottom:28px; }
+    .header h1 {
+      font-size:26px; font-weight:700; letter-spacing:2px;
+      color: #007722;
+    }
+    .header p { margin-top:8px; font-size:13px; color:#999; letter-spacing:1px; }
+
+    /* 统计卡片 */
+    .stat-row { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin-bottom:24px; }
+    .stat-card {
+      background:#fff; border:1px solid #e0e0e0;
+      border-radius:14px; padding:14px 20px; text-align:center; min-width:100px;
+      transition:transform .2s,box-shadow .2s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .stat-card:hover { transform:translateY(-3px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .stat-card .sv { font-size:22px; font-weight:700; }
+    .stat-card .sl { font-size:11px; color:#666; margin-top:3px; letter-spacing:.5px; }
+
+    /* 地图容器 */
+    .map-wrap {
+      width:100%; max-width:1200px;
+      background:#fff; border:1px solid #e0e0e0;
+      border-radius:22px; overflow:hidden; position:relative;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    #worldMap { width:100%; height:clamp(300px, 50vw, 620px); }
+
+    /* 国家排行 */
+    .rank-wrap { width:100%; max-width:1200px; margin-top:28px; }
+    .rank-wrap h2 {
+      font-size:15px; font-weight:600; color:#111;
+      margin-bottom:14px; border-left:4px solid #007722; padding-left:12px;
+    }
+    .rank-grid {
+      display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px;
+    }
+    .rc {
+      background:#fff; border:1px solid #e0e0e0;
+      border-radius:12px; padding:12px 16px;
+      display:flex; align-items:center; gap:12px;
+      transition:transform .18s,box-shadow .18s; cursor:default;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+    .rc:hover { transform:translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .rc-rank {
+      width:30px; height:30px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:12px; font-weight:700; flex-shrink:0;
+    }
+    .rc-rank.gold   { background:linear-gradient(135deg,#ffd700,#ffaa00); color:#000; }
+    .rc-rank.silver { background:linear-gradient(135deg,#c0c0c0,#808080); color:#000; }
+    .rc-rank.bronze { background:linear-gradient(135deg,#cd7f32,#8b4513); color:#fff; }
+    .rc-rank.other  { background:#eef7f2; color:#007722; }
+    .rc-info { flex:1; min-width:0; }
+    .rc-name { font-size:14px; font-weight:600; color:#111; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rc-bar-bg { margin-top:5px; background:#eef7f2; border-radius:4px; height:4px; }
+    .rc-bar    { height:4px; border-radius:4px; background:linear-gradient(90deg,#007722,#4a9b5e); }
+    .rc-val    { font-size:18px; font-weight:700; color:#007722; flex-shrink:0; }
+
+    /* 图例说明 */
+    .legend-note {
+      margin-top:18px; padding:14px 18px;
+      background:#eef7f2; border:1px solid #d0e8d6;
+      border-radius:12px; font-size:12px; color:#666;
+      line-height:1.8; max-width:1200px; width:100%;
+    }
+    .legend-note strong { color:#007722; }
+
+    /* ====== 洞察文本框 ====== */
+    .insight-box {
+      max-width:900px; margin:36px auto 0;
+      background:#fff;
+      border:1px solid #e0e0e0;
+      border-radius:16px; padding:20px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    }
+    .insight-header {
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:12px;
+    }
+    .insight-title {
+      font-size:13px; font-weight:700; letter-spacing:1px;
+      color:#007722;
+      display:flex; align-items:center; gap:8px;
+    }
+    .insight-saved { font-size:11px; color:#999; transition:opacity .4s; }
+    .insight-textarea {
+      width:100%; min-height:110px;
+      background:#f9f9f9;
+      border:1px solid #e0e0e0;
+      border-radius:10px; padding:12px 14px;
+      color:#111; font-size:13px;
+      font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+      line-height:1.8; resize:vertical; outline:none;
+      transition:border-color .2s, background .2s; box-sizing:border-box;
+    }
+    .insight-textarea::placeholder { color:#999; }
+    .insight-textarea:focus { border-color:#007722; background:#fff; }
+    .insight-footer-row { display:flex; justify-content:flex-end; margin-top:10px; gap:8px; }
+    .insight-btn { padding:6px 16px; border:none; border-radius:8px; font-size:12px; cursor:pointer; transition:opacity .2s,transform .2s; }
+    .insight-btn:hover { opacity:.85; transform:translateY(-1px); }
+    .insight-btn-save { background:#007722; color:#fff; font-weight:700; }
+    .insight-btn-clear { background:#f6f6f6; border:1px solid #e0e0e0; color:#666; }
+
+    .footer {
+      margin-top:32px; font-size:12px;
+      color:#999; letter-spacing:1px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>豆瓣 Top 250 · 制片国家/地区世界地图</h1>
+  <p>以制片国家/地区（新）为维度 · 对片名去重计数 · 共 31 个国家/地区</p>
+</div>
+
+<div class="stat-row">
+  <div class="stat-card">
+    <div class="sv" style="color:#007722">31</div><div class="sl">国家/地区数</div>
+  </div>
+  <div class="stat-card">
+    <div class="sv" style="color:#1a8c3a">141</div><div class="sl">美国影片数</div>
+  </div>
+  <div class="stat-card">
+    <div class="sv" style="color:#2e9b4e">48</div><div class="sl">中国影片数</div>
+  </div>
+  <div class="stat-card">
+    <div class="sv" style="color:#42aa62">39</div><div class="sl">英国影片数</div>
+  </div>
+  <div class="stat-card">
+    <div class="sv" style="color:#56b976">35</div><div class="sl">日本影片数</div>
+  </div>
+</div>
+
+<div class="map-wrap">
+  <div id="worldMap"></div>
+</div>
+
+<div class="legend-note">
+  <strong>💡 地图说明：</strong><br/>
+  • 颜色深浅代表该国/地区在豆瓣 Top250 中的影片数量，颜色越深数量越多<br/>
+  • 点击地图上的国家可查看详细信息<br/>
+  • 灰色区域表示该国家/地区无影片入选豆瓣 Top250<br/>
+  • 数据基于"制片国家/地区（新）"字段统计，部分合拍片可能重复计数
+</div>
+
+<div class="rank-wrap">
+  <h2>🌍 制片国家/地区完整排行（Top 31）</h2>
+  <div class="rank-grid" id="rankGrid"></div>
+</div>
+
+<div class="insight-box">
+  <div class="insight-header">
+    <div class="insight-title">★ Insight · 你的洞察与观点</div>
+    <span class="insight-saved" id="insightSaved"></span>
+  </div>
+  <textarea class="insight-textarea" id="insightText"
+    placeholder="在这里记录你的分析洞察，例如：&#10;· 哪个国家或地区的电影产量最高？&#10;· 美国电影的主导优势体现在哪些方面？&#10;· 亚洲各国（中日韩）的表现各有何特点？"></textarea>
+  <div class="insight-footer-row">
+    <button class="insight-btn insight-btn-clear" onclick="insightClear('map')">清空</button>
+    <button class="insight-btn insight-btn-save" onclick="insightSave('map')">💾 保存</button>
+  </div>
+</div>
+
+<div class="footer">CC - AI 助理 &nbsp;|&nbsp; 数据来源：豆瓣电影 Top 250</div>
+
+<script>
+(function(){
+  const KEY = 'insight_map';
+  const ta = document.getElementById('insightText');
+  const saved = localStorage.getItem(KEY);
+  if(saved) ta.value = saved;
+  ta.addEventListener('input', function(){ localStorage.setItem(KEY, ta.value); });
+})();
+function insightSave(k){
+  const ta = document.getElementById('insightText');
+  localStorage.setItem('insight_'+k, ta.value);
+  const el = document.getElementById('insightSaved');
+  el.textContent = '✓ 已保存 ' + new Date().toLocaleTimeString();
+  setTimeout(()=>{ el.textContent=''; }, 3000);
+}
+function insightClear(k){
+  if(!confirm('确定清空洞察内容吗？')) return;
+  document.getElementById('insightText').value = '';
+  localStorage.removeItem('insight_'+k);
+}
+</script>
+
+<script>
+// 国家数据（英文名称用于地图匹配）
+let countryData = [
+  { name: 'United States', cn: '美国', value: 141 },
+  { name: 'China', cn: '中国', value: 48 },
+  { name: 'United Kingdom', cn: '英国', value: 39 },
+  { name: 'Japan', cn: '日本', value: 35 },
+  { name: 'France', cn: '法国', value: 19 },
+  { name: 'South Korea', cn: '韩国', value: 12 },
+  { name: 'Germany', cn: '德国', value: 11 },
+  { name: 'Italy', cn: '意大利', value: 9 },
+  { name: 'Canada', cn: '加拿大', value: 8 },
+  { name: 'Australia', cn: '澳大利亚', value: 4 },
+  { name: 'Spain', cn: '西班牙', value: 3 },
+  { name: 'Switzerland', cn: '瑞士', value: 3 },
+  { name: 'New Zealand', cn: '新西兰', value: 3 },
+  { name: 'Sweden', cn: '瑞典', value: 2 },
+  { name: 'Brazil', cn: '巴西', value: 2 },
+  { name: 'India', cn: '印度', value: 2 },
+  { name: 'Iran', cn: '伊朗', value: 1 },
+  { name: 'Argentina', cn: '阿根廷', value: 1 },
+  { name: 'Hungary', cn: '匈牙利', value: 1 },
+  { name: 'South Africa', cn: '南非', value: 1 },
+  { name: 'Qatar', cn: '卡塔尔', value: 1 },
+  { name: 'Jordan', cn: '约旦', value: 1 },
+  { name: 'Greece', cn: '希腊', value: 1 },
+  { name: 'Ireland', cn: '爱尔兰', value: 1 },
+  { name: 'Cyprus', cn: '塞浦路斯', value: 1 },
+  { name: 'Thailand', cn: '泰国', value: 1 },
+  { name: 'Poland', cn: '波兰', value: 1 },
+  { name: 'Mexico', cn: '墨西哥', value: 1 },
+  { name: 'Austria', cn: '奥地利', value: 1 },
+  { name: 'Denmark', cn: '丹麦', value: 1 },
+  { name: 'Lebanon', cn: '黎巴嫩', value: 1 }
+];
+
+// ===== localStorage 数据读取已禁用，使用硬编码原始数据 =====
+// 如需恢复数据上传功能，请取消下面代码块的注释
+/*
+(function () {
+  const CN_TO_EN = {
+    '美国':1,'中国大陆':2,'中国香港':2,'中国台湾':2,'中国':2,
+    '英国':3,'日本':4,'法国':5,'韩国':6,'德国':7,'意大利':8,
+    '加拿大':9,'澳大利亚':10,'西班牙':11,'瑞士':12,'新西兰':13,
+    '瑞典':14,'巴西':15,'印度':16,'伊朗':17,'阿根廷':18,
+    '匈牙利':19,'南非':20,'卡塔尔':21,'约旦':22,'希腊':23,
+    '爱尔兰':24,'塞浦路斯':25,'泰国':26,'波兰':27,'墨西哥':28,
+    '奥地利':29,'丹麦':30,'黎巴嫩':31,'俄罗斯':32,'捷克':33,
+    '荷兰':34,'比利时':35,'芬兰':36,'挪威':37,'葡萄牙':38,
+    '土耳其':39,'以色列':40,'罗马尼亚':41,'克罗地亚':42
+  };
+  const EN_MAP = {
+    1:'United States',2:'China',3:'United Kingdom',4:'Japan',5:'France',
+    6:'South Korea',7:'Germany',8:'Italy',9:'Canada',10:'Australia',
+    11:'Spain',12:'Switzerland',13:'New Zealand',14:'Sweden',15:'Brazil',
+    16:'India',17:'Iran',18:'Argentina',19:'Hungary',20:'South Africa',
+    21:'Qatar',22:'Jordan',23:'Greece',24:'Ireland',25:'Cyprus',
+    26:'Thailand',27:'Poland',28:'Mexico',29:'Austria',30:'Denmark',
+    31:'Lebanon',32:'Russia',33:'Czech Republic',34:'Netherlands',
+    35:'Belgium',36:'Finland',37:'Norway',38:'Portugal',39:'Turkey',
+    40:'Israel',41:'Romania',42:'Croatia'
+  };
+  const CN_NAME = {
+    1:'美国',2:'中国',3:'英国',4:'日本',5:'法国',6:'韩国',7:'德国',
+    8:'意大利',9:'加拿大',10:'澳大利亚',11:'西班牙',12:'瑞士',
+    13:'新西兰',14:'瑞典',15:'巴西',16:'印度',17:'伊朗',18:'阿根廷',
+    19:'匈牙利',20:'南非',21:'卡塔尔',22:'约旦',23:'希腊',24:'爱尔兰',
+    25:'塞浦路斯',26:'泰国',27:'波兰',28:'墨西哥',29:'奥地利',30:'丹麦',
+    31:'黎巴嫩',32:'俄罗斯',33:'捷克',34:'荷兰',35:'比利时',36:'芬兰',
+    37:'挪威',38:'葡萄牙',39:'土耳其',40:'以色列',41:'罗马尼亚',42:'克罗地亚'
+  };
+  try {
+    const saved = localStorage.getItem('douban_top250_data');
+    if (!saved) return;
+    const all = JSON.parse(saved);
+    if (!Array.isArray(all) || all.length === 0) return;
+    const idMap = {};
+    all.forEach(d => {
+      const countries = (d.country || '').trim().split(/\s+/);
+      countries.forEach(cn => {
+        const id = CN_TO_EN[cn];
+        if (id) idMap[id] = (idMap[id] || 0) + 1;
+      });
+    });
+    if (Object.keys(idMap).length === 0) return;
+    countryData = Object.entries(idMap)
+      .map(([id, val]) => ({ name: EN_MAP[+id], cn: CN_NAME[+id], value: val }))
+      .filter(d => d.name)
+      .sort((a, b) => b.value - a.value);
+  } catch (e) { console.warn('读取localStorage失败', e); }
+})();
+*/
+
+const total = countryData.reduce((s,d)=>s+d.value,0);
+const maxVal = Math.max(...countryData.map(d=>d.value));
+
+// 初始化 ECharts 地图
+const chart = echarts.init(document.getElementById('worldMap'));
+
+// 地图配置
+const option = {
+  backgroundColor: 'transparent',
+  tooltip: {
+    trigger: 'item',
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderColor: '#e0e0e0',
+    borderWidth: 1,
+    textStyle: { color: '#111', fontSize: 13 },
+    padding: [12, 16],
+    formatter: function(params) {
+      if (params.value) {
+        const pct = ((params.value/total)*100).toFixed(1);
+        return `<div style="font-size:15px;font-weight:700;color:#007722;margin-bottom:4px">${params.name}</div>
+                <div>影片数量：<strong>${params.value}</strong> 部</div>
+                <div style="color:#999;font-size:11px">占所有影片：${pct}%</div>`;
+      }
+      return params.name;
+    }
+  },
+  visualMap: {
+    min: 0,
+    max: 150,
+    left: 'left',
+    bottom: '20',
+    text: ['高', '低'],
+    textStyle: { color: '#666' },
+    calculable: true,
+    inRange: {
+      color: ['#eef7f2', '#c8e6d4', '#9dd3b3', '#5cb85c', '#007722']
+    },
+    show: true
+  },
+  series: [{
+    name: '豆瓣 Top250 影片数',
+    type: 'map',
+    map: 'world',
+    roam: true,
+    emphasis: {
+      label: { show: true, color: '#111' },
+      itemStyle: {
+        areaColor: '#ffd700',
+        shadowBlur: 20,
+        shadowColor: 'rgba(255,215,0,0.5)'
+      }
+    },
+    itemStyle: {
+      areaColor: '#eef7f2',
+      borderColor: '#d0e8d6',
+      borderWidth: 0.5
+    },
+    data: countryData.map(d => ({ name: d.name, value: d.value }))
+  }]
+};
+
+// 加载世界地图并渲染
+fetch('https://cdn.jsdelivr.net/npm/echarts/map/json/world.json')
+  .then(res => res.json())
+  .then(worldJson => {
+    echarts.registerMap('world', worldJson);
+    chart.setOption(option);
+  })
+  .catch(err => {
+    console.error('地图加载失败:', err);
+    document.getElementById('worldMap').innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999">' +
+      '地图加载中... 请检查网络连接</div>';
+  });
+
+// 响应式
+window.addEventListener('resize', () => chart.resize());
+
+// 生成排行卡片
+const rankGrid = document.getElementById('rankGrid');
+countryData.forEach((item, i) => {
+  const cls = i===0 ? 'gold' : i===1 ? 'silver' : i===2 ? 'bronze' : 'other';
+  const barW = Math.round((item.value/maxVal)*100);
+  rankGrid.innerHTML += `
+    <div class="rc">
+      <div class="rc-rank ${cls}">${i+1}</div>
+      <div class="rc-info">
+        <div class="rc-name">${item.cn}</div>
+        <div class="rc-bar-bg"><div class="rc-bar" style="width:${barW}%"></div></div>
+      </div>
+      <div class="rc-val">${item.value}</div>
+    </div>`;
+});
+</script>
+</body>
+</html>

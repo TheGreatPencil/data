@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>豆瓣 Top 250 · 影片类型树状图</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      background: #f6f6f6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 36px 20px 48px;
+      color: #111111;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #007722;
+    }
+    .header p {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #666666;
+      letter-spacing: 1px;
+    }
+
+    /* ---- 图例 ---- */
+    .legend {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #666666;
+    }
+    .legend-dot {
+      width: 12px; height: 12px;
+      border-radius: 3px;
+    }
+
+    /* ---- 树状图容器 ---- */
+    .treemap-wrap {
+      width: 100%;
+      max-width: 1100px;
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+      border-radius: 20px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    #treemap {
+      width: 100%;
+      display: block;
+    }
+
+    /* ---- Tooltip ---- */
+    .tooltip {
+      position: fixed;
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #111111;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 999;
+      line-height: 1.8;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .tooltip.show { opacity: 1; }
+    .tooltip .t-name  { font-size: 16px; font-weight: 700; color: #007722; }
+    .tooltip .t-count { color: #111111; }
+    .tooltip .t-pct   { color: #999999; font-size: 12px; }
+
+    /* ---- 底部排行 ---- */
+    .ranking { margin-top: 32px; width: 100%; max-width: 1100px; }
+    .ranking h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #111111;
+      margin-bottom: 14px;
+      border-left: 4px solid #007722;
+      padding-left: 12px;
+    }
+    .rank-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+    }
+    .rank-item {
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: transform 0.18s, background 0.18s, box-shadow 0.18s;
+      cursor: default;
+    }
+    .rank-item:hover {
+      transform: translateY(-2px);
+      background: #ffffff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .rank-badge {
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .rank-info { flex: 1; min-width: 0; }
+    .rank-name {
+      font-size: 13px; font-weight: 600; color: #111111;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .rank-bar-bg { margin-top: 4px; background: #f0f0f0; border-radius: 4px; height: 4px; }
+    .rank-bar    { height: 4px; border-radius: 4px; }
+    .rank-val    { font-size: 17px; font-weight: 700; flex-shrink: 0; }
+
+    /* ====== 洞察文本框 ====== */
+    .insight-box {
+      max-width:900px; margin:36px auto 0;
+      background: #ffffff;
+      border:1px solid #e0e0e0;
+      border-radius:16px; padding:20px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .insight-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .insight-title { font-size:13px; font-weight:700; letter-spacing:1px; color:#007722; display:flex; align-items:center; gap:8px; }
+    .insight-saved { font-size:11px; color:#999999; transition:opacity .4s; }
+    .insight-textarea {
+      width:100%; min-height:110px;
+      background:#f9f9f9; border:1px solid #e0e0e0;
+      border-radius:10px; padding:12px 14px;
+      color:#111111; font-size:13px;
+      font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+      line-height:1.8; resize:vertical; outline:none;
+      transition:border-color .2s,background .2s; box-sizing:border-box;
+    }
+    .insight-textarea::placeholder { color:#999999; }
+    .insight-textarea:focus { border-color:#007722; background:#ffffff; }
+    .insight-footer-row { display:flex; justify-content:flex-end; margin-top:10px; gap:8px; }
+    .insight-btn { padding:6px 16px; border:none; border-radius:8px; font-size:12px; cursor:pointer; transition:opacity .2s,transform .2s; }
+    .insight-btn:hover { opacity:.85; transform:translateY(-1px); }
+    .insight-btn-save { background:#007722; color:#ffffff; font-weight:700; }
+    .insight-btn-clear { background:#f6f6f6; border:1px solid #e0e0e0; color:#666666; }
+
+    .footer {
+      margin-top: 32px;
+      font-size: 12px;
+      color: #999999;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>豆瓣 Top 250 · 影片类型树状图</h1>
+  <p>矩形面积代表该类型影片数量（去重）&nbsp;|&nbsp; 共 27 种类型 · 250 部影片</p>
+</div>
+
+<div class="legend" id="legendWrap"></div>
+
+<div class="treemap-wrap">
+  <canvas id="treemap"></canvas>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="ranking">
+  <h2>📊 影片类型完整排行</h2>
+  <div class="rank-list" id="rankList"></div>
+</div>
+
+<div class="insight-box">
+  <div class="insight-header">
+    <div class="insight-title">★ Insight · 你的洞察与观点</div>
+    <span class="insight-saved" id="insightSaved"></span>
+  </div>
+  <textarea class="insight-textarea" id="insightText"
+    placeholder="在这里记录你的分析洞察，例如：&#10;· 剧情类影片独占鳌头，这说明了什么？&#10;· 哪些类型组合最容易出现高分佳作？&#10;· 商业类型片（动作/科幻）与艺术类型片的比例如何？"></textarea>
+  <div class="insight-footer-row">
+    <button class="insight-btn insight-btn-clear" onclick="insightClear('genre')">清空</button>
+    <button class="insight-btn insight-btn-save" onclick="insightSave('genre')">💾 保存</button>
+  </div>
+</div>
+
+<div class="footer">CC - AI 助理 &nbsp;|&nbsp; 数据来源：豆瓣电影 Top 250</div>
+
+<script>
+(function(){
+  const KEY = 'insight_genre';
+  const ta = document.getElementById('insightText');
+  const saved = localStorage.getItem(KEY);
+  if(saved) ta.value = saved;
+  ta.addEventListener('input', function(){ localStorage.setItem(KEY, ta.value); });
+})();
+function insightSave(k){
+  const ta = document.getElementById('insightText');
+  localStorage.setItem('insight_'+k, ta.value);
+  const el = document.getElementById('insightSaved');
+  el.textContent = '✓ 已保存 ' + new Date().toLocaleTimeString();
+  setTimeout(()=>{ el.textContent=''; }, 3000);
+}
+function insightClear(k){
+  if(!confirm('确定清空洞察内容吗？')) return;
+  document.getElementById('insightText').value = '';
+  localStorage.removeItem('insight_'+k);
+}
+</script>
+
+<script>
+// ===== 数据 =====
+let data = [
+  {name:"剧情",value:186},{name:"爱情",value:55},{name:"喜剧",value:53},
+  {name:"冒险",value:50},{name:"奇幻",value:44},{name:"犯罪",value:41},
+  {name:"动画",value:40},{name:"惊悚",value:33},{name:"悬疑",value:31},
+  {name:"动作",value:31},{name:"科幻",value:25},{name:"家庭",value:18},
+  {name:"传记",value:15},{name:"战争",value:14},{name:"古装",value:10},
+  {name:"历史",value:10},{name:"同性",value:9},{name:"音乐",value:9},
+  {name:"歌舞",value:7},{name:"儿童",value:4},{name:"武侠",value:4},
+  {name:"情色",value:3},{name:"恐怖",value:2},{name:"灾难",value:2},
+  {name:"西部",value:2},{name:"纪录片",value:1},{name:"运动",value:1}
+];
+
+// ===== localStorage 数据读取已禁用，使用硬编码原始数据 =====
+// 如需恢复数据上传功能，请取消下面代码块的注释
+/*
+(function () {
+  try {
+    const saved = localStorage.getItem('douban_top250_data');
+    if (!saved) return;
+    const all = JSON.parse(saved);
+    if (!Array.isArray(all) || all.length === 0) return;
+    const map = {};
+    all.forEach(d => {
+      const genres = (d.genre || '').trim().split(/\s+/);
+      genres.forEach(g => {
+        if (g) map[g] = (map[g] || 0) + 1;
+      });
+    });
+    if (Object.keys(map).length === 0) return;
+    data = Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value]) => ({ name, value }));
+  } catch (e) { console.warn('读取localStorage失败', e); }
+})();
+*/
+
+// ===== 每种类型独立配色（豆瓣绿色系风格）=====
+const TYPE_COLORS = {
+  // 豆瓣绿主色系
+  '剧情':  '#007722',  // 豆瓣绿
+  '爱情':  '#2d8a4e',  // 深绿
+  '喜剧':  '#4a9d64',  // 中绿
+  '冒险':  '#1a6b38',  // 暗绿
+  '奇幻':  '#5cb85c',  // 浅绿
+  '犯罪':  '#0d5c2e',  // 深墨绿
+  '动画':  '#28a745',  // 翠绿
+  '惊悚':  '#dc3545',  // 红（警示）
+  '悬疑':  '#17a2b8',  // 青蓝
+  '动作':  '#007bff',  // 蓝
+  '科幻':  '#6f42c1',  // 紫
+  '家庭':  '#20c997',  // 薄荷绿
+  '传记':  '#fd7e14',  // 橙
+  '战争':  '#8b4513',  // 棕
+  '古装':  '#6b8e23',  // 橄榄绿
+  '历史':  '#5f9ea0',  // 灰蓝
+  '同性':  '#e83e8c',  // 粉
+  '音乐':  '#ffc107',  // 黄
+  '歌舞':  '#ff6b6b',  // 珊瑚红
+  '儿童':  '#4ecdc4',  // 青绿
+  '武侠':  '#8b0000',  // 暗红
+  '情色':  '#c41e3a',  // 深红
+  '恐怖':  '#800000',  // 酒红
+  '灾难':  '#a52a2a',  // 褐红
+  '西部':  '#d2691e',  // 巧克力色
+  '纪录片':'#708090',  // 灰
+  '运动':  '#4169e1',  // 皇家蓝
+};
+
+// 备用色（动态数据中出现的新类型，从色盘循环取）
+const FALLBACK_PALETTE = [
+  '#007722','#2d8a4e','#4a9d64','#1a6b38','#5cb85c',
+  '#28a745','#20c997','#17a2b8','#007bff','#6f42c1'
+];
+
+function getColor(name) {
+  if (TYPE_COLORS[name]) return TYPE_COLORS[name];
+  // 对未知类型按名字哈希取色
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
+  return FALLBACK_PALETTE[hash % FALLBACK_PALETTE.length];
+}
+
+// ===== Squarified Treemap 算法（修正版）=====
+// 规则：w>=h 时横向切带（带内矩形等高、宽按比例）；w<h 时纵向切带（带内矩形等宽、高按比例）
+function squarify(items, x, y, w, h) {
+  if (!items.length) return [];
+  const total = items.reduce((s, d) => s + d.value, 0);
+
+  // 计算当前行的最差长宽比（越接近1越好）
+  function worst(row, bandLen, areaTotal) {
+    const s   = row.reduce((a, b) => a + b.value, 0);
+    const max = Math.max(...row.map(d => d.value));
+    const min = Math.min(...row.map(d => d.value));
+    // 每个矩形在带内的宽 = s/areaTotal * bandLen（带宽）
+    // 每个矩形的高 = d.value/s * bandLen（实为band厚度的倒数关系）
+    const r1 = (bandLen * bandLen * max) / (s * s);
+    const r2 = (s * s) / (bandLen * bandLen * min);
+    return Math.max(r1, r2);
+  }
+
+  // 把一行矩形布局到 (x,y,w,h) 区域内
+  function layoutRow(row, x, y, w, h, areaTotal) {
+    const s = row.reduce((a, b) => a + b.value, 0);
+    const rects = [];
+    if (w >= h) {
+      // 横向带：带高 = s/areaTotal * h，带内矩形等高、宽按比例
+      const bandH = (s / areaTotal) * h;
+      let cx = x;
+      for (const d of row) {
+        const rw = (d.value / s) * w;
+        rects.push({ ...d, x: cx, y, w: rw, h: bandH });
+        cx += rw;
+      }
+    } else {
+      // 纵向带：带宽 = s/areaTotal * w，带内矩形等宽、高按比例
+      const bandW = (s / areaTotal) * w;
+      let cy = y;
+      for (const d of row) {
+        const rh = (d.value / s) * h;
+        rects.push({ ...d, x, y: cy, w: bandW, h: rh });
+        cy += rh;
+      }
+    }
+    return rects;
+  }
+
+  function squarifyRec(items, x, y, w, h, areaTotal, result) {
+    if (!items.length) return;
+    if (items.length === 1) {
+      result.push(...layoutRow(items, x, y, w, h, areaTotal));
+      return;
+    }
+    // bandLen：当前短边，用于计算长宽比
+    const bandLen = w >= h ? w : h;
+    let row = [];
+    let i = 0;
+    while (i < items.length) {
+      const next = [...row, items[i]];
+      if (row.length === 0 || worst(next, bandLen, areaTotal) <= worst(row, bandLen, areaTotal)) {
+        row = next;
+        i++;
+      } else {
+        break;
+      }
+    }
+    const placed = layoutRow(row, x, y, w, h, areaTotal);
+    result.push(...placed);
+    // 计算剩余空间
+    const s = row.reduce((a, b) => a + b.value, 0);
+    if (w >= h) {
+      const usedH = (s / areaTotal) * h;
+      squarifyRec(items.slice(i), x, y + usedH, w, h - usedH, areaTotal - s, result);
+    } else {
+      const usedW = (s / areaTotal) * w;
+      squarifyRec(items.slice(i), x + usedW, y, w - usedW, h, areaTotal - s, result);
+    }
+  }
+
+  const result = [];
+  squarifyRec(items, x, y, w, h, total, result);
+  return result;
+}
+
+// ===== 绘制 =====
+const canvas = document.getElementById('treemap');
+const wrap   = canvas.parentElement;
+const tooltip = document.getElementById('tooltip');
+let rects = [];
+
+function draw() {
+  const W = wrap.clientWidth;
+  const H = Math.round(W * 0.62);
+  canvas.width  = W;
+  canvas.height = H;
+  // canvas.style.height 由 canvas.height 自动决定，无需重复设置
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  const total  = data.reduce((s, d) => s + d.value, 0);
+  rects = squarify(sorted, 0, 0, W, H);
+
+  rects.forEach(r => {
+    const color = getColor(r.name);
+    const pad = 3;
+    const rx = r.x + pad;
+    const ry = r.y + pad;
+    const rw = r.w - pad * 2;
+    const rh = r.h - pad * 2;
+    if (rw < 2 || rh < 2) return;
+
+    // 圆角矩形路径（复用）
+    const radius = Math.min(6, rw / 2, rh / 2);
+    function roundRect() {
+      ctx.beginPath();
+      ctx.moveTo(rx + radius, ry);
+      ctx.lineTo(rx + rw - radius, ry);
+      ctx.arcTo(rx + rw, ry, rx + rw, ry + radius, radius);
+      ctx.lineTo(rx + rw, ry + rh - radius);
+      ctx.arcTo(rx + rw, ry + rh, rx + rw - radius, ry + rh, radius);
+      ctx.lineTo(rx + radius, ry + rh);
+      ctx.arcTo(rx, ry + rh, rx, ry + rh - radius, radius);
+      ctx.lineTo(rx, ry + radius);
+      ctx.arcTo(rx, ry, rx + radius, ry, radius);
+      ctx.closePath();
+    }
+
+    // 主体渐变填充（豆瓣风格：从浅色到深色的绿色渐变）
+    const mainGrd = ctx.createLinearGradient(rx, ry, rx + rw, ry + rh);
+    // 将颜色转为RGB并创建浅色版本
+    mainGrd.addColorStop(0, color + 'dd');   // 87% 不透明度
+    mainGrd.addColorStop(1, color + 'aa');   // 67% 不透明度
+    roundRect();
+    ctx.fillStyle = mainGrd;
+    ctx.fill();
+
+    // 顶部高光条（白色微透明）
+    const glowH = Math.min(rh * 0.35, 40);
+    const grd = ctx.createLinearGradient(0, ry, 0, ry + glowH);
+    grd.addColorStop(0, 'rgba(255,255,255,0.25)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    roundRect();
+    ctx.fillStyle = grd;
+    ctx.fill();
+
+    // 细边框
+    roundRect();
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 文字区域
+    const innerW = rw - 14;
+    const innerH = rh - 10;
+    if (innerW < 18 || innerH < 12) return;
+
+    // 文字左上对齐（参考图风格）
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const tx = rx + 8;
+    const ty = ry + 7;
+
+    if (innerH >= 54 && innerW >= 55) {
+      // 大格子：类型名大字 + 数量 + 百分比，左上对齐
+      const fs1 = Math.min(Math.floor(innerW / 3.5), Math.floor(innerH / 3.8), 28);
+      ctx.font = `700 ${fs1}px "Microsoft YaHei", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(r.name, tx, ty);
+
+      const fs2 = Math.max(Math.round(fs1 * 0.62), 11);
+      ctx.font = `${fs2}px "Microsoft YaHei", sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillText(`${r.value} 部`, tx, ty + fs1 + 4);
+
+      if (innerH >= 90) {
+        const pct = ((r.value / total) * 100).toFixed(1);
+        ctx.font = `${Math.max(Math.round(fs2 * 0.88), 10)}px "Microsoft YaHei", sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.fillText(`${pct}%`, tx, ty + fs1 + fs2 + 8);
+      }
+    } else if (innerH >= 28 && innerW >= 32) {
+      // 中格子：类型名 + 数量，左上对齐
+      const fs = Math.min(Math.floor(innerW / 3.8), Math.floor(innerH / 2.6), 16);
+      ctx.font = `700 ${fs}px "Microsoft YaHei", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(r.name, tx, ty);
+      const fs2 = Math.max(Math.round(fs * 0.72), 10);
+      ctx.font = `${fs2}px "Microsoft YaHei", sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillText(`${r.value}`, tx, ty + fs + 3);
+    } else {
+      // 小格子：只放类型名
+      const fs = Math.min(Math.floor(innerW / 2.8), Math.floor(innerH / 1.5), 13);
+      if (fs >= 8) {
+        ctx.font = `700 ${fs}px "Microsoft YaHei", sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.95)';
+        ctx.fillText(r.name, tx, ty);
+      }
+    }
+  });
+}
+
+// ===== Tooltip =====
+canvas.addEventListener('mousemove', e => {
+  const rc  = canvas.getBoundingClientRect();
+  const mx  = (e.clientX - rc.left) * (canvas.width / rc.width);
+  const my  = (e.clientY - rc.top)  * (canvas.height / rc.height);
+  const hit = rects.find(r => mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h);
+  if (hit) {
+    const total = data.reduce((s, d) => s + d.value, 0);
+    const pct = ((hit.value / total) * 100).toFixed(1);
+    tooltip.innerHTML = `
+      <div class="t-name">${hit.name}</div>
+      <div class="t-count">影片数量：<strong>${hit.value}</strong> 部</div>
+      <div class="t-pct">占比：${pct}%（共 ${total} 部）</div>`;
+    tooltip.classList.add('show');
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+    canvas.style.cursor = 'pointer';
+  } else {
+    tooltip.classList.remove('show');
+    canvas.style.cursor = 'default';
+  }
+});
+canvas.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+
+// ===== 图例（改为展示部数区间+色块示例）=====
+function buildLegend() {
+  const wrap = document.getElementById('legendWrap');
+  const legendData = [
+    { label: '100+ 部', names: ['剧情'] },
+    { label: '40–99 部', names: ['爱情','喜剧','冒险'] },
+    { label: '20–39 部', names: ['奇幻','犯罪','动画'] },
+    { label: '10–19 部', names: ['惊悚','悬疑','动作'] },
+    { label: '4–9 部',   names: ['科幻','家庭'] },
+    { label: '1–3 部',   names: ['恐怖','灾难'] },
+  ];
+  legendData.forEach(g => {
+    const sampleColor = getColor(g.names[0]);
+    wrap.innerHTML += `
+      <div class="legend-item">
+        <div class="legend-dot" style="background:${sampleColor}"></div>
+        <span>${g.label}</span>
+      </div>`;
+  });
+}
+
+// ===== 排行榜 =====
+function buildRanking() {
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  const maxV  = sorted[0].value;
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const container = document.getElementById('rankList');
+  container.innerHTML = '';
+  sorted.forEach((item, i) => {
+    const color = getColor(item.name);
+    const pct   = Math.round((item.value / maxV) * 100);
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+    // 进度条：从颜色本身渐变到稍浅版本
+    const barGrad = `linear-gradient(90deg, ${color}, ${color}aa)`;
+    container.innerHTML += `
+      <div class="rank-item">
+        <div class="rank-badge" style="background:${color}22;border:1px solid ${color}55;color:${color};font-size:${i<3?'15px':'12px'}">${medal}</div>
+        <div class="rank-info">
+          <div class="rank-name">${item.name}</div>
+          <div class="rank-bar-bg">
+            <div class="rank-bar" style="width:${pct}%;background:${barGrad}"></div>
+          </div>
+        </div>
+        <div class="rank-val" style="color:${color}">${item.value}</div>
+      </div>`;
+  });
+}
+
+// ===== 初始化 =====
+window.addEventListener('load', () => {
+  buildLegend();
+  draw();
+  buildRanking();
+});
+window.addEventListener('resize', draw);
+</script>
+</body>
+</html>
